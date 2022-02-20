@@ -3,9 +3,12 @@ WORKDIR /app
 
 FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
 WORKDIR /src
-COPY ["HistoracleTools/HistoracleTools.csproj", "HistoracleTools/"]
+
+COPY . . 
+RUN dotnet restore "ExternalTools/ExternalTools.csproj"
+#COPY ["HistoracleTools.csproj", "HistoracleTools/"]
 RUN dotnet restore "HistoracleTools/HistoracleTools.csproj"
-COPY . .
+#COPY . .
 WORKDIR "/src/HistoracleTools"
 RUN dotnet build "HistoracleTools.csproj" -c Release -o /app/build
 

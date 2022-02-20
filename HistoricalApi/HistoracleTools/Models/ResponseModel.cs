@@ -23,9 +23,20 @@ namespace HistoracleTools.Models
             return $"{HttpStatus}, \"{propsString}\"";
         }
 
-        public string getSummary()
+        public string GetSummary(IEnumerable<string> propOrder)
         {
-            return ToString();
+            var response = "";
+            foreach (var prop in propOrder)
+            {
+                if(Properties.ContainsKey(prop))
+                    response += $"{prop}={Properties[prop]}:";
+                // else
+                // {
+                //     response += $"{prop}=NA:";
+                // }
+            }
+
+            return response;
         }
     }
 }

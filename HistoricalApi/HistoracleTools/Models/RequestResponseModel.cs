@@ -23,6 +23,7 @@ namespace HistoracleTools.Models
         private int restlerGeneration;
         private int restlerSequenceNumber;
         private string endpoint;
+        private string method;
         public int ReqNum { get; }
 
         public RequestResponseModel(string groupId, int reqNum, RequestModel request, ResponseModel response, int restlerGeneration, int restlerSequenceNumber)
@@ -34,6 +35,7 @@ namespace HistoracleTools.Models
             this.restlerGeneration = restlerGeneration;
             this.restlerSequenceNumber = restlerSequenceNumber;
             var urlInfo = WorkaroundPathParameters(request.Url);
+            method = request.HttpMethod;
             endpoint = $"{request.HttpMethod}:{urlInfo[0]}";
             if (urlInfo.Length == 2)
             {
@@ -203,9 +205,20 @@ namespace HistoracleTools.Models
             return new string[] {url};
         }
 
-        public string GetSummary()
+        public string GetSummary(bool request, IEnumerable<string> propOrder)
         {
-            return$"{GetEndpoint()},{Request.GetSummary()},{Response.getSummary()}";
+            if (request)
+                return $"{Request.GetSummary(propOrder)}";
+            else
+                return $"{Response.GetSummary(propOrder)}";
+        }
+        public string OldGetSummary()
+        {
+            return$"{GetEndpoint()},{Request.ToString()},{Response.ToString()}";
+        }
+        public string Method()
+        {
+            return method;
         }
     }
 }

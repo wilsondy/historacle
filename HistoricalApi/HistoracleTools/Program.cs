@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommandLine;
 using HistoracleTools.Algorithms;
+using HistoracleTools.HARTools;
 using HistoracleTools.Models;
+using HistoracleTools.Reporting;
 using HistoracleTools.RestlerTools;
 using HistoracleTools.Storage;
 
@@ -17,7 +19,9 @@ namespace HistoracleTools
         
         //[Option('o', "output", Required = true, HelpText = "Output File")]
         //public string OutputFile { get; set;}
-        
+        [Option('t', "type", Required = false, HelpText = "File Type")]
+        public string FileType { get; set; }
+
         [Option('g', "groupId", Required = true, HelpText = "GroupId to assign in the model")]
         public string GroupId { get; set; }
         
@@ -26,7 +30,10 @@ namespace HistoracleTools
     }
     [Verb("analyze", HelpText = "Run Algorithm")]
     class AnalyzeOptions { //normal options here
-        [Option('i', "analysisId", Required = true, HelpText = "Anslysis ID")]
+        [Option('o', "reportDirectory", Required = true, HelpText = "Directory to write reports")]
+        public string ReportDir { get; set; }
+        
+        [Option('i', "analysisId", Required = true, HelpText = "Analysis ID")]
         public string AnalysisId { get; set; }
         [Option('a', "groupIdA", Required = true, HelpText = "GroupId for A")]
         public string GroupIdA { get; set; }
@@ -93,18 +100,40 @@ namespace HistoracleTools
             var difReport = await dbscan.IsDifferent(o.AnalysisId,
                 groupA,
                 groupB,
-                model => model.Sequences.SelectMany(seq => seq.Requests.FindAll(x => x.GetEndpoint() == endpoint)), false);
-            if (difReport.IsDifferent)
-                Console.WriteLine($"{endpoint}, different");
+                model => model.Sequences.SelectMany(seq => seq.Requests.FindAll(x => x.GetEndpoint() == endpoint)),
+                false);
+            if (difReport == null)
+                Console.WriteLine($"{endpoint}, NO RESULT- DATA INSUFFICIENT");
             else
-                Console.WriteLine($"{endpoint}, NOT different");
+            {
+                if (difReport.IsDifferent)
+                    Console.WriteLine($"{endpoint}, different");
+                else if (!difReport.IsDifferent)
+                    Console.WriteLine($"{endpoint}, NOT different");
+                var report = new ReportClustering();
+                report.WriteCSV(o.ReportDir, difReport.Summary);
+            }
         }
+
+
+        
 
         private static void ParseRestlerNetworkFile(ParseOptions parseOptions)
         {
-            var input = ParseRestlerRecord.Parse(parseOptions.InputFile, parseOptions.GroupId);
+            RestlerModel input = null;
+            if (parseOptions.FileType == "har")
+            {
+                input = ParseHarFile.Parse(parseOptions.InputFile, parseOptions.GroupId);
+
+            }
+            else
+            {
+                input = ParseRestlerRecord.Parse(parseOptions.InputFile, parseOptions.GroupId);
+            }
+            
             var repo = new RestlerModelRepository(parseOptions.RepoRoot);
-            repo.Store(input);
+            if(input != null)
+                repo.Store(input);
         }
 
         static void HandleParseError(IEnumerable<Error> errs)
