@@ -13,10 +13,13 @@ namespace HistoracleTools.Algorithms
 
     public class DifferenceReport
     {
-        public DifferenceReport(bool isDifferent)
+        public DifferenceReport(bool isDifferent, ClusteringSummary summary)
         {
             IsDifferent = isDifferent;
+            Summary = summary;
         }
+
+        public ClusteringSummary Summary { get; set; }
 
         public bool IsDifferent { get; }
     }

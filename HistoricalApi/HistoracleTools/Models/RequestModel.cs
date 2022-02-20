@@ -30,9 +30,20 @@ namespace HistoracleTools.Models
             return $"{HttpMethod}, {Url}, \"{propsString}\"";
         }
 
-        public string GetSummary()
+        public string GetSummary(IEnumerable<string> propOrder)
         {
-            return ToString();
+            var response = "";
+            foreach (var prop in propOrder)
+            {
+                if(Properties.ContainsKey(prop))
+                    response += $"{prop}={Properties[prop]}";
+                // else
+                // {
+                //     response += $"{prop}=NA";
+                // }
+            }
+
+            return response;
         }
     }
 }

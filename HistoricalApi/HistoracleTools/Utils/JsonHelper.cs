@@ -5,9 +5,10 @@ namespace HistoracleTools.Parse
 {
     public class JsonHelper
     {
-        public static Dictionary<string, object> DeserializeAndFlatten(string json)
+        public static Dictionary<string, object> DeserializeAndFlatten(string json, bool replaceNewLine = false)
         {
-            json = json.Replace("\\n","");
+            if(replaceNewLine)
+                json = json.Replace("\\n","");
             Dictionary<string, object> dict = new Dictionary<string, object>();
             JToken token = JToken.Parse(json);
             FillDictionaryFromJToken(dict, token, "");

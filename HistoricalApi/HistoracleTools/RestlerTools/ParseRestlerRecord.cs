@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using HistoracleTools.Models;
 using HistoracleTools.Parse;
@@ -118,7 +119,20 @@ namespace HistoracleTools.RestlerTools
                 {
                     var urlsplit = m.Groups["url"].Value.Split('?');
                     string url = urlsplit[0];
-                    var requestModel = new RequestModel(m.Groups["method"].Value, url);
+                    //
+                    if (url.EndsWith('/'))
+                        url = url.Substring(0, url.Length - 1);
+                    //detect if this includes an ID on the url 
+                    var urlSplit2 = url.Split('/');
+                   
+                    //TODO this is very Tasso centric (UUID as only identifer- need access to openapi yml/json or some other method
+                    if (Guid.TryParse(urlSplit2[^1], out var g))
+                    {
+                        url = url.Replace(urlSplit2[^1], "<id>");
+                    }
+                
+
+                var requestModel = new RequestModel(m.Groups["method"].Value, url);
                     for (int i = 1; i < urlsplit.Length; i++)
                     {
                         var ampsplit = urlsplit[i].Split('&');
@@ -127,7 +141,7 @@ namespace HistoracleTools.RestlerTools
                             var vars =varsplit.Split('=');
                             if (vars.Length != 2)
                                 continue;
-                            requestModel.Properties.Add($@"q.{vars[0]}", vars[1]);
+                            requestModel.Properties.Add($@"q.{vars[0]}", RemapProps(vars[0], vars[1]));
                             
                         }
                         
@@ -149,17 +163,20 @@ namespace HistoracleTools.RestlerTools
                 var balancedreg = @"\{(?>\{(?<c>)|[^{}]+|\}(?<-c>))*(?(c)(?!))\}";
                 Regex body = new Regex(balancedreg, RegexOptions.Multiline, TimeSpan.FromMilliseconds(150));
              //   Regex body = new Regex(@"(?<body>{[^}]+})", RegexOptions.Multiline, TimeSpan.FromMilliseconds(150));
-                var bodyMatch = body.Match(line);
+                var bodyMatch = body.Matches(line).LastOrDefault();
 
-                if (bodyMatch.Success)
+                if (bodyMatch != null  && bodyMatch.Success)
                 {
+                    
                     var rawjson = bodyMatch.Value;
                     try
                     {
-                        var flattenedBody = JsonHelper.DeserializeAndFlatten(rawjson);
+                        var flattenedBody = JsonHelper.DeserializeAndFlatten(rawjson, true);
                         foreach (var key in flattenedBody.Keys)
                         {
-                            properties.Add($"b.{key}", flattenedBody[key] == null  ? "null" : flattenedBody[key].ToString());
+                            var propValue = RemapProps(key,
+                                flattenedBody[key] == null ? "null" : flattenedBody[key].ToString());
+                            properties.Add($"b.{key}",propValue );
                         }
                     }
                     catch (JsonException e)
@@ -172,6 +189,24 @@ namespace HistoracleTools.RestlerTools
                 }
             }
 
+            /**
+             * This would need to be a plugin kind of a thing or args on the parsing side
+             */
+            private static string RemapProps(string propName, string propValue)
+            {
+                if(propValue == "CnNh9WJbk6oICvIL")
+                    Console.WriteLine("stop");
+                if (propValue == null)
+                    return propValue;
+                if (propName.ToLower().EndsWith("id"))
+                    return "<id>";
+                if (propName.ToLower().EndsWith("ids"))//TASSO specific
+                    return "<id>";
+                if (propName.ToLower().EndsWith("at")) //TASSO specific
+                    return "<date>";
+
+                return propValue;
+            }
             private static void ParseKeyValuePairs(string line, Dictionary<string,string> properties)
             {
                 Regex keyValues = new Regex(@"(\\n(?<key>[^\s]+): (?<value>[^\s]+)\\r)",

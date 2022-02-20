@@ -10,6 +10,9 @@ namespace HistoracleTools.Parse
             string second
         )
         {
+            if (string.IsNullOrEmpty(second) && string.IsNullOrEmpty(first))
+                return 0;
+            
             if (string.IsNullOrEmpty(first))
             {
                 return second.Length;
@@ -20,8 +23,7 @@ namespace HistoracleTools.Parse
                 return first.Length;
             }
 
-            if (string.IsNullOrEmpty(second) && string.IsNullOrEmpty(first))
-                return 0;
+           
 
             var current = 1;
             var previous = 0;
