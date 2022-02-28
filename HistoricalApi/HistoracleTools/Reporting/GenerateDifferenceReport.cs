@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Accord.Statistics.Distributions;
+using Accord.Statistics.Testing;
 using HistoracleTools.Algorithms;
 using HistoracleTools.Models;
+using Microsoft.Extensions.Logging;
 
 namespace HistoracleTools.Reporting
 {
     public class GenerateDifferenceReport
     {
-        public DifferenceReport GenerateReport(RestlerModel a, RestlerModel b, ClusteringSummary summary, bool silent)
+        public DifferenceReport GenerateReport(RestlerModel a, RestlerModel b, ClusteringSummary summary, int countOfA, int countOfB, double pValueCutoff, ILogger logger)
         {
               //per cluster
             //count number from each group
@@ -22,77 +25,103 @@ namespace HistoracleTools.Reporting
             var requestSummarize = SummarizeRawGroups(requestClusterIds.ToArray(), summary.SummaryResults, a.GroupId, b.GroupId, false);
             var responseSummarize = SummarizeRawGroups(responseClusterIds.ToArray(), summary.SummaryResults, a.GroupId, b.GroupId,true);
             var countResponseOverweight = 0;
-            
+            var countRequestClusteringSignificantlyDifferent = 0;
             foreach (var tuple in requestSummarize)
             {
-                if (!silent)
+                if (IsSignificantDifferenceViaTwoProportionTest(tuple.Value.Item3, countOfA, tuple.Value.Item4,
+                        countOfB, pValueCutoff, logger).Item1)
                 {
-                    Console.WriteLine(
-                        $"Request, {tuple.Key}, {tuple.Value.Item1} ({tuple.Value.Item3}), {tuple.Value.Item2} ({tuple.Value.Item4}), {Math.Abs(tuple.Value.Item1 - tuple.Value.Item2)}");
+                    countRequestClusteringSignificantlyDifferent++;
                 }
-            }
-            foreach (var tuple in responseSummarize)
-            {
-                var diff = Math.Abs(tuple.Value.Item1 - tuple.Value.Item2);
-                if (!silent)
-                {
-                    Console.WriteLine(
-                        $"Response, {tuple.Key}, {tuple.Value.Item1} ({tuple.Value.Item3}), {tuple.Value.Item2} ({tuple.Value.Item4}), {diff}");
-                }
-
-                if (diff >= 0.4)
-                {
-                    countResponseOverweight++; //totally picked out of the air! 0.3-0.7 0.8-0.2
-                }
-            }
-            
-            //Request-Response , percentA, percentB -- that take the transition
-            foreach (var requestClusterId in requestClusterIds)
-            {
-                var requestIdsGroupAInCluster = summary.SummaryResults.Where(g => g.RequestClusterId == requestClusterId && g.GroupId == a.GroupId)
-                    .Select(g => g.RequestId);
+                logger.LogDebug(
+                    $"Request, {tuple.Key}, {tuple.Value.Item1} ({tuple.Value.Item3}), {tuple.Value.Item2} ({tuple.Value.Item4}), {Math.Abs(tuple.Value.Item1 - tuple.Value.Item2)}");
                 
-                var requestIdsGroupBInCluster = summary.SummaryResults.Where(g => g.RequestClusterId == requestClusterId && g.GroupId == b.GroupId)
-                    .Select(g => g.RequestId);
-                
-                foreach (var responseClusterid in responseClusterIds)
-                {
-                    var itemsInResponseFromGroupACluster = summary.SummaryResults.Count(g =>
-                        g.GroupId == a.GroupId && g.ResponseClusterId == responseClusterid && 
-                        requestIdsGroupAInCluster.Contains(g.RequestId));
-                    var itemsInResponseFromGroupBCluster = summary.SummaryResults.Count(g =>
-                        g.GroupId == b.GroupId && g.ResponseClusterId == responseClusterid &&
-                        requestIdsGroupBInCluster.Contains(g.RequestId));
-
-                    var percentTransitionA = 0.0;
-                    if (itemsInResponseFromGroupACluster > 0)
-                        percentTransitionA =
-                            (double)itemsInResponseFromGroupACluster/ (double)requestIdsGroupAInCluster.Count() ;
-                    var percentTransitionB = 0.0;
-                    
-                    if (itemsInResponseFromGroupBCluster > 0)
-                        percentTransitionB =
-                            (double)itemsInResponseFromGroupBCluster / (double)requestIdsGroupBInCluster.Count() ;
-
-                    if (itemsInResponseFromGroupBCluster > requestIdsGroupBInCluster.Count() ||
-                        itemsInResponseFromGroupACluster > requestIdsGroupAInCluster.Count())
-                        throw new Exception("unexpected counts!");
-
-                    if (!silent)
-                    {
-                        if (percentTransitionA > 0.0 || percentTransitionB > 0.0)
-                        {
-                            Console.WriteLine(
-                                $"trans probs: {requestClusterId}->{responseClusterid}, {itemsInResponseFromGroupACluster}/{requestIdsGroupAInCluster.Count()}={percentTransitionA}, {itemsInResponseFromGroupBCluster}/{requestIdsGroupBInCluster.Count()}={percentTransitionB}, {Math.Abs(percentTransitionA - percentTransitionB)}");
-                        }
-                    }
-                }
             }
-            if(countResponseOverweight >0)
-                return new DifferenceReport(true, summary);
+
+            if (countRequestClusteringSignificantlyDifferent > 0)
+            {
+                summary.AnalysisParameters["countRequestClusteringSignificantlyDifferent"] =
+                    countRequestClusteringSignificantlyDifferent.ToString();
+
+                logger.LogWarning(
+                    "Request clusters are different (Significantly). Traffic is too dissimilar. Declining to analyze responses.");
+                
+                return new DifferenceReport(DifferenceType.RequestsNotCompatible, summary);
+            }
             else
             {
-                return new DifferenceReport(false, summary);
+                foreach (var tuple in responseSummarize)
+                {
+                    var diff = Math.Abs(tuple.Value.Item1 - tuple.Value.Item2);
+                    
+                    
+                    logger.LogDebug(
+                        $"Response, {tuple.Key}, {tuple.Value.Item1} ({tuple.Value.Item3}), {tuple.Value.Item2} ({tuple.Value.Item4}), {diff}");
+                
+
+                    if (IsSignificantDifferenceViaTwoProportionTest(tuple.Value.Item3, countOfA, tuple.Value.Item4,
+                            countOfB, pValueCutoff, logger).Item1)
+                    {
+                        countResponseOverweight++;
+                    }
+                }
+
+                //Request-Response , percentA, percentB -- that take the transition
+                foreach (var requestClusterId in requestClusterIds)
+                {
+                    var requestIdsGroupAInCluster = summary.SummaryResults.Where(g =>
+                            g.RequestClusterId == requestClusterId && g.GroupId == a.GroupId)
+                        .Select(g => g.RequestId);
+
+                    var requestIdsGroupBInCluster = summary.SummaryResults.Where(g =>
+                            g.RequestClusterId == requestClusterId && g.GroupId == b.GroupId)
+                        .Select(g => g.RequestId);
+
+                    foreach (var responseClusterid in responseClusterIds)
+                    {
+                        var itemsInResponseFromGroupACluster = summary.SummaryResults.Count(g =>
+                            g.GroupId == a.GroupId && g.ResponseClusterId == responseClusterid &&
+                            requestIdsGroupAInCluster.Contains(g.RequestId));
+                        var itemsInResponseFromGroupBCluster = summary.SummaryResults.Count(g =>
+                            g.GroupId == b.GroupId && g.ResponseClusterId == responseClusterid &&
+                            requestIdsGroupBInCluster.Contains(g.RequestId));
+
+                        var percentTransitionA = 0.0;
+                        if (itemsInResponseFromGroupACluster > 0)
+                            percentTransitionA =
+                                (double) itemsInResponseFromGroupACluster / (double) requestIdsGroupAInCluster.Count();
+                        var percentTransitionB = 0.0;
+
+                        if (itemsInResponseFromGroupBCluster > 0)
+                            percentTransitionB =
+                                (double) itemsInResponseFromGroupBCluster / (double) requestIdsGroupBInCluster.Count();
+
+                        if (itemsInResponseFromGroupBCluster > requestIdsGroupBInCluster.Count() ||
+                            itemsInResponseFromGroupACluster > requestIdsGroupAInCluster.Count())
+                            throw new Exception("unexpected counts!");
+
+                        var test = IsSignificantDifferenceViaTwoProportionTest(itemsInResponseFromGroupACluster, countOfA,
+                            itemsInResponseFromGroupBCluster, countOfB, pValueCutoff, logger);
+                        if (test.Item1)
+                        {
+                            logger.LogInformation(
+                                $" Significant transition difference: {requestClusterId}->{responseClusterid} P Value: {test.Item2}");
+                        }
+                        else
+                        {
+                            logger.LogDebug($" trans probs: {requestClusterId}->{responseClusterid} P Value: {test.Item2}");                            
+                        }
+
+
+                    }
+                }
+
+                if (countResponseOverweight > 0)
+                    return new DifferenceReport(DifferenceType.ResponseDifferent, summary);
+                else
+                {
+                    return new DifferenceReport(DifferenceType.ResponseNotDifferent, summary);
+                }
             }
         }
         private  Dictionary<string, (double, double,int,int)> SummarizeRawGroups(String[] clusterIds, List<SummaryResult> groupings, string groupIdA, string groupIdB, bool useResponseClusterId)
@@ -112,5 +141,29 @@ namespace HistoracleTools.Reporting
 
             return results;
         }
+        
+        public (bool, double)  IsSignificantDifferenceViaTwoProportionTest(int countA, int allA, int countB, int allB, double alpha, ILogger logger){
+            try
+            {
+                //These blow up the TwoProportionZTest so we take it off the table
+                if (allA == 0 || allB == 0)
+                    return (false, 1);
+                if (countA == allA && countB == allB)
+                    return (false, 1);
+                if(countA == countB && allB == allA)
+                    return (false, 1);
+                var test = new TwoProportionZTest(countA, allA, countB, allB, TwoSampleHypothesis.ValuesAreDifferent);
+                return ((test.PValue < alpha), test.PValue);
+            }
+            catch (ArgumentOutOfRangeException e)
+            {
+                logger.LogWarning("ProportionalTest Blew Up.  Returning no difference.");
+            }
+
+            return (false, double.NaN);
+        }
     }
+    
+   
 }
+
