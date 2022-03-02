@@ -9,11 +9,11 @@ namespace HistoracleTools.Reporting
     public class ReportClustering
     {
         
-        public void WriteCSV(string outputDirectory, ClusteringSummary summary)
+        public void WriteCSV(string outputDirectory, ClusteringSummary summary, bool wasDifferent)
         {
             var req = summary.RequestClusters.First().Value.requests.First().Request;
             var fileName = $"{req.HttpMethod}_{req.Url.Replace("/","")}";
-            StreamWriter file = new($"{outputDirectory}/{summary.SummaryResults[0].AnalysisId}_{fileName}_out.csv");
+            StreamWriter file = new($"{outputDirectory}/{(wasDifferent? "DIFFERENT_": "")}{summary.SummaryResults[0].AnalysisId}_{fileName}_out.csv");
             file.WriteLine($"analysisId, groupId, ReqNum, RequestClusterId, ResponseClusterId, Endpoint, Method, Req Props, Res Code, Res Props");
             //clusterId => props in order for output
             var reqProps = new Dictionary<string, IEnumerable<string>>();

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using CommandLine;
 using HistoracleTools.Algorithms;
@@ -44,7 +46,7 @@ namespace HistoracleTools
         [Option('r', "repoRoot", Required = false, HelpText = "Root dir for storage of data", Default = "/Users/dwilson/school/historaclerepo")]
         public string RepoRoot { get; set; }
         
-        [Option('e', "endpoint", Required = false, HelpText = "REST Endpoint to analyze", Default = "POST:/api/v3/store/order")]
+        [Option('e', "endpoint", Required = false, HelpText = "REST Endpoint to analyze (e.g. POST:/api/v3/store/order) ", Default = "All")]
         public string Endpoint { get; set; }
         
         [Option('m', "minpoints", Required = false, HelpText = "Min Points for DBSCAN", Default = Double.NaN)]
@@ -99,28 +101,39 @@ namespace HistoracleTools
 
         private static async Task Analyze(AnalyzeOptions o, ILogger logger)
         {
-            var dbscan = new DbScanAlgorithm();
-            var repo = new RestlerModelRepository(o.RepoRoot);
-            var groupA = repo.Load(o.GroupIdA);
-            var groupB = repo.Load(o.GroupIdB);
-            var endpoint = o.Endpoint;
-            if (endpoint == "All")
+            try
             {
-               var a= groupA.Sequences.SelectMany(seq => seq.Requests.Select(x => x.GetEndpoint())).ToHashSet();
-               var b= groupB.Sequences.SelectMany(seq => seq.Requests.Select(x => x.GetEndpoint())).ToHashSet();
-               var endpoints = a.Concat(b).ToHashSet();
-               foreach (var e in endpoints)
-               {
-                   await AnalyzeEndpoint(o, dbscan, groupA, groupB, e, logger);
-               }
+
+
+                var dbscan = new DbScanAlgorithm();
+                Console.Out.WriteLine($"REPO ROOT iS {o.RepoRoot}");
+                var repo = new RestlerModelRepository(o.RepoRoot);
+                var groupA = repo.Load(o.GroupIdA);
+                var groupB = repo.Load(o.GroupIdB);
+                var endpoint = o.Endpoint;
+                if (endpoint == "All")
+                {
+                    var a = groupA.Sequences.SelectMany(seq => seq.Requests.Select(x => x.GetEndpoint())).ToHashSet();
+                    var b = groupB.Sequences.SelectMany(seq => seq.Requests.Select(x => x.GetEndpoint())).ToHashSet();
+                    var endpoints = a.Concat(b).ToHashSet();
+                    foreach (var e in endpoints)
+                    {
+                        await AnalyzeEndpoint(o, dbscan, groupA, groupB, e, logger);
+                    }
+                }
+                else
+                {
+                    await AnalyzeEndpoint(o, dbscan, groupA, groupB, endpoint, logger);
+                }
             }
-            else
+            catch (Exception e)
             {
-                await AnalyzeEndpoint(o, dbscan, groupA, groupB, endpoint, logger);
+                logger.LogError(e.Message);
+                
             }
 
             return;
-        }
+    }
 
         private static async Task AnalyzeEndpoint(AnalyzeOptions o, DbScanAlgorithm dbscan, RestlerModel groupA,
             RestlerModel groupB, string endpoint, ILogger logger)
@@ -141,7 +154,8 @@ namespace HistoracleTools
                 else if (difReport.IsDifferent == DifferenceType.RequestsNotCompatible)
                     Console.WriteLine($"{endpoint}, declined analysis - requests not similar");
                 var report = new ReportClustering();
-                report.WriteCSV(o.ReportDir, difReport.Summary);
+                Directory.CreateDirectory(o.ReportDir);
+                report.WriteCSV(o.ReportDir, difReport.Summary, difReport.IsDifferent == DifferenceType.ResponseDifferent);
             }
         }
 
