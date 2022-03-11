@@ -21,21 +21,22 @@ namespace HistoracleTools.Reporting
             foreach (var result in summary.RequestClusters)
             {
                 if (!reqProps.ContainsKey(result.Value.ClusterId))
-                    reqProps[result.Value.ClusterId] = result.Value.GetPropertiesOrderedByVariety();
+                    reqProps[result.Value.ClusterId] = result.Value.GetPropertiesOrderedKeyAlphabetically();
             }
             foreach (var result in summary.ResponseClusters)
             {
                 if (!resProps.ContainsKey(result.Value.ClusterId))
-                    resProps[result.Value.ClusterId] = result.Value.GetPropertiesOrderedByVariety();
+                    resProps[result.Value.ClusterId] = result.Value.GetPropertiesOrderedKeyAlphabetically();
             }
 
             foreach (var result in summary.SummaryResults)
             {
                 var requestCluster = summary.RequestClusters[result.RequestClusterId];
+              
                 var request = requestCluster.requests.First(model => model.ReqNum.ToString() == result.RequestId && model.GroupId == result.GroupId);
                 var responseCluster = summary.ResponseClusters[result.ResponseClusterId];
-                var reqPropOrder = requestCluster.GetPropertiesOrderedByVariety();
-                var resPropOrder = responseCluster.GetPropertiesOrderedByVariety();
+                var reqPropOrder = requestCluster.GetPropertiesOrderedKeyAlphabetically();
+                var resPropOrder = responseCluster.GetPropertiesOrderedKeyAlphabetically();
                 file.WriteLine(
                     $"${result.AnalysisId},{result.GroupId}, {result.RequestId},{result.RequestClusterId}, {result.ResponseClusterId}," +
                     $" {request.GetEndpoint()} , {request.Method()}, { request.GetSummary(true, reqPropOrder)}, " +
