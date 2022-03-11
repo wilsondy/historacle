@@ -241,9 +241,9 @@ namespace HistoracleTools.Algorithms
             foreach (var request in data)
             {
                 var foundReqReq = reqreqResult.Clusters.Values
-                    .SelectMany(list => list.Where(x => x.Feature.ReqNum == request.ReqNum)).FirstOrDefault();
+                    .SelectMany(list => list.Where(x => x.Feature.ReqNum == request.ReqNum && x.Feature.GroupId == request.GroupId)).FirstOrDefault();
                 var foundResRes = resresResult.Clusters.Values
-                    .SelectMany(list => list.Where(x => x.Feature.ReqNum == request.ReqNum)).FirstOrDefault();
+                    .SelectMany(list => list.Where(x => x.Feature.ReqNum == request.ReqNum && x.Feature.GroupId == request.GroupId)).FirstOrDefault();
                 var requestClusterId = foundReqReq == null ? "Noise" : foundReqReq.ClusterId.ToString();
                 var responseClusterId = foundResRes == null ? "Noise" : foundResRes.ClusterId.ToString();
                 results.Add(new SummaryResult(analysisId,

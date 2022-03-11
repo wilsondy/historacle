@@ -78,6 +78,16 @@ namespace HistoracleTools.Models
             });
             return list.Select(pair => pair.Key);
         }
+        public IEnumerable<string> GetPropertiesOrderedKeyAlphabetically() {
+        
+            var list = new List<KeyValuePair<string, Dictionary<string,int>>>(props.AsEnumerable());
+            list.Sort((pair1, pair2) =>
+            {
+                return pair1.Key.CompareTo(pair2.Key);
+
+            });
+            return list.Select(pair => pair.Key);
+        }
 
         
     }
