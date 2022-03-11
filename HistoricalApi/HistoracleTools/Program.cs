@@ -106,7 +106,7 @@ namespace HistoracleTools
 
 
                 var dbscan = new DbScanAlgorithm();
-                Console.Out.WriteLine($"REPO ROOT iS {o.RepoRoot}");
+                Console.Out.WriteLine($"Repo root is {o.RepoRoot}");
                 var repo = new RestlerModelRepository(o.RepoRoot);
                 var groupA = repo.Load(o.GroupIdA);
                 var groupB = repo.Load(o.GroupIdB);
@@ -148,9 +148,9 @@ namespace HistoracleTools
             else
             {
                 if (difReport.IsDifferent == DifferenceType.ResponseDifferent)
-                    Console.WriteLine($"{endpoint}, different");
+                    Console.WriteLine($"{endpoint}, DIFFERENT");
                 else if (difReport.IsDifferent == DifferenceType.ResponseNotDifferent)
-                    Console.WriteLine($"{endpoint}, NOT different");
+                    Console.WriteLine($"{endpoint}, not different");
                 else if (difReport.IsDifferent == DifferenceType.RequestsNotCompatible)
                     Console.WriteLine($"{endpoint}, declined analysis - requests not similar");
                 var report = new ReportClustering();
